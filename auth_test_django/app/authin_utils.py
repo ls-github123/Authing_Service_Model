@@ -2,6 +2,8 @@
 from decouple import config
 import requests
 from authing import AuthenticationClient
+from jwcrypto import jwt, jwk
+from cachetools import cached, TTLCache
 
 # 重定向到 Authing 托管登录页
 # 生成用于登录的一次性地址链接
@@ -17,6 +19,50 @@ authentication_client = AuthenticationClient(
     # Authing 应用配置的登录回调地址
     redirect_uri = config('AUTHING_APP_REDIRECT_URI'),
 )
+
+# 缓存公钥, 配置过期时间
+# maxsize 缓存中允许存储的最大条目数量
+# ttl-time to live 生存时间(秒)
+cache = TTLCache(maxsize=1, ttl=3600)
+
+# 从 Authing 的 JWKS 端点获取公钥
+@cached(cache)
+def get_authing_jwks():
+    try:
+        # 请求Authing Jwks端点
+        response = requests.get(config("AUTHING_APP_JWKS"))
+        response.raise_for_status() # 检查请求结果
+        jwks_data = response.json()
+        print(f"打印JWKS公钥信息以调试:{jwks_data}")
+        return jwks_data['keys'][0] # 获取 JWKS 数据中的第一个密钥
+    except requests.exceptions.RequestException as e:
+        print(f"从 Authing 获取 JWKS 时出错:{e}")
+        return None
+    
+# 验证 JWT 令牌
+def verify_jwt_token(token):
+    """
+    使用 Authing 的公钥验证 JWT 令牌。
+    :param token: 前端传递的 JWT 令牌
+    :return: 验证成功返回解码后的 claims,失败返回 None
+    """
+    try:
+        # 获取Authing公钥
+        jwks_key = get_authing_jwks()
+        if not jwks_key:
+            return None
+        
+        # 使用公钥验证 JWT 签名
+        key = jwk.JWK(**jwks_key)
+        token_obj = jwt.JWT(key=key, jwt=token)
+        
+        # 返回解码后的 claims 数据
+        claims = token_obj.claims
+        return claims
+    except Exception as e:
+        print(f"JWT 验证失败: {e}")
+        return None
+
 
 # 获取 Authing 托管登录页的授权URL
 def get_authing_login_url():
