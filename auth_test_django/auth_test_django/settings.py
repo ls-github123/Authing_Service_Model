@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
+from app.authin_utils import get_authing_jwks
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -74,9 +75,8 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': False, # 由 Authing 处理
     'BLACKLIST_AFTER_ROTATION': False, # 刷新令牌后将旧的令牌列入黑名单(这里由Authing服务处理)
     'ALGORITHM': 'HS256', # 使用的加密算法
-    'SIGNING_KEY': None, # 使用 Authing的签名公钥
-    'VERIFYING_KEY': None,  # 从 Authing 获取公钥
-    'AUTH_HEADER_TYPES': ('Bearer',),  # 认证类型为 Bearer
+    'VERIFYING_KEY': get_authing_jwks(),  # 使用缓存的 Authing 公钥来验证签名
+    'AUTH_HEADER_TYPES': ('Bearer',),  # 认证头类型为 Bearer
 }
 
 ROOT_URLCONF = 'auth_test_django.urls'

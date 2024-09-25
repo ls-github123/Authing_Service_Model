@@ -23,7 +23,7 @@ authentication_client = AuthenticationClient(
 # 缓存公钥, 配置过期时间
 # maxsize 缓存中允许存储的最大条目数量
 # ttl-time to live 生存时间(秒)
-cache = TTLCache(maxsize=1, ttl=3600)
+cache = TTLCache(maxsize=1, ttl=3600*24*7)
 
 # 从 Authing 的 JWKS 端点获取公钥
 @cached(cache)
