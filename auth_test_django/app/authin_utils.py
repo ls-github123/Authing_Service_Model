@@ -2,8 +2,12 @@
 from decouple import config
 import requests
 from authing import AuthenticationClient
-from jwcrypto import jwt, jwk
 from cachetools import cached, TTLCache
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
+from jwt import ExpiredSignatureError, InvalidTokenError
+import base64
 
 # 重定向到 Authing 托管登录页
 # 生成用于登录的一次性地址链接
@@ -26,7 +30,7 @@ authentication_client = AuthenticationClient(
 cache = TTLCache(maxsize=1, ttl=3600*24*7)
 
 # 从 Authing 的 JWKS 端点获取公钥
-@cached(cache)
+@cached(cache) # cached装饰器-将公钥缓存到内存中 避免重复请求 Authing 的 JWKS 端点
 def get_authing_jwks():
     try:
         # 请求Authing Jwks端点
@@ -34,34 +38,56 @@ def get_authing_jwks():
         response.raise_for_status() # 检查请求结果
         jwks_data = response.json()
         print(f"打印JWKS公钥信息以调试:{jwks_data}")
-        return jwks_data['keys'][0] # 获取 JWKS 数据中的第一个密钥
+        
+        # 检查是否存在'keys'键,并返回第一个密钥
+        if 'keys' in jwks_data and len(jwks_data['keys']) > 0:
+            return jwks_data['keys'][0]
+        else:
+            print("JWKS数据中未检索到密钥")
+            return None
     except requests.exceptions.RequestException as e:
         print(f"从 Authing 获取 JWKS 时出错:{e}")
         return None
-    
-# 验证 JWT 令牌
-def verify_jwt_token(token):
+
+# 将 JWKS 中的公钥数据转换为 PEM 格式
+def get_pem_from_jwks(jwks_key):
     """
-    使用 Authing 的公钥验证 JWT 令牌。
-    :param token: 前端传递的 JWT 令牌
-    :return: 验证成功返回解码后的 claims,失败返回 None
+    将 JWKS 中的公钥数据转换为 PEM 格式。
+    :param jwks_key: 从 JWKS 获取的包含 'n' 和 'e' 的 RSA 公钥数据。
+    :return: PEM 格式的公钥字符串。
     """
     try:
-        # 获取Authing公钥
-        jwks_key = get_authing_jwks()
-        if not jwks_key:
-            return None
+        # Base64 URL 解码 'n' 和 'e' decode 转换为字节串
+        n = int.from_bytes(base64.urlsafe_b64decode(jwks_key['n'] + '=='), 'big')
+        e = int.from_bytes(base64.urlsafe_b64decode(jwks_key['e'] + '=='), 'big')
         
-        # 使用公钥验证 JWT 签名
-        key = jwk.JWK(**jwks_key)
-        token_obj = jwt.JWT(key=key, jwt=token)
+        # 使用 cryptography 生成 RSA 公钥
+        public_key = rsa.RSAPublicNumbers(e, n).public_key()
         
-        # 返回解码后的 claims 数据
-        claims = token_obj.claims
-        return claims
+        # 将公钥导出为 PEM 格式
+        pem_key = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        
+        # 解码为 UTF-8 字符串
+        pem_key_str = pem_key.decode('utf-8') # 将字节串解码为字符串
+        print(f"PEM 公钥: {pem_key_str}")
+        return pem_key_str
     except Exception as e:
-        print(f"JWT 验证失败: {e}")
+        print(f'从JWKS数据生成PEM公钥时出错: {e}')
         return None
+
+# 获取并缓存 PEM 格式公钥
+def get_cached_authing_public_key():
+    """
+    获取并缓存的 Authing 公钥，转换为 PEM 格式
+    return: PEM 格式的公钥字符串
+    """
+    jwks_key = get_authing_jwks() # 从缓存或请求获取jwks数据
+    if jwks_key: # 如果jwks数据存在, 则执行PEM公钥转换
+        return get_pem_from_jwks(jwks_key) # 转换并返回 PEM 公钥
+    return None
 
 
 # 获取 Authing 托管登录页的授权URL

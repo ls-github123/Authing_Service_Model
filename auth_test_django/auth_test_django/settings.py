@@ -13,7 +13,8 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 from decouple import config
 from datetime import timedelta
-from app.authin_utils import get_authing_jwks
+from app.authin_utils import get_cached_authing_public_key # # 导入获取PEM公钥函数
+from app.tokenbackend import CustomTokenBackend
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -69,14 +70,16 @@ REST_FRAMEWORK = {
 }
 
 # JWT令牌配置
+# 关联 JWTAuthentication
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30), # 访问令牌有效期为15分钟
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7), # 刷新令牌有效期为1天
-    'ROTATE_REFRESH_TOKENS': False, # 由 Authing 处理
+    'ROTATE_REFRESH_TOKENS': False, # 由 Authing身份云 处理
     'BLACKLIST_AFTER_ROTATION': False, # 刷新令牌后将旧的令牌列入黑名单(这里由Authing服务处理)
-    'ALGORITHM': 'HS256', # 使用的加密算法
-    'VERIFYING_KEY': get_authing_jwks(),  # 使用缓存的 Authing 公钥来验证签名
+    'ALGORITHM': 'RS256', # 使用的加密算法
+    'VERIFYING_KEY': get_cached_authing_public_key(),  # 调用工具函数获取 PEM 公钥
     'AUTH_HEADER_TYPES': ('Bearer',),  # 认证头类型为 Bearer
+    'TOKEN_BACKEND_CLASS': CustomTokenBackend, # 自定义TokenBackend
 }
 
 ROOT_URLCONF = 'auth_test_django.urls'

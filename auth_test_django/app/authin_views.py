@@ -48,5 +48,6 @@ class AuthingCallbackView(APIView):
         return Response({
             "message":"登录成功",
             "access_token": access_token,
-            "id_token": id_token
+            "id_token": id_token,
+            'user_info': user_info,
         })
