@@ -14,7 +14,7 @@ from pathlib import Path
 from decouple import config
 from datetime import timedelta
 from app.authin_utils import get_cached_authing_public_key # # 导入获取PEM公钥函数
-from app.tokenbackend import CustomTokenBackend
+# from app.tokenbackend import CustomTokenBackend
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -61,7 +61,8 @@ MIDDLEWARE = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         # 指定JWTAuthentication作为认证类,验证前端回传的JWT令牌
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'app.authentication.custom_jwt_auth.CustomJWTAuthentication', # 指定自定义的JWT认证类
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         # 默认所有API视图访问均需通过认证
@@ -73,13 +74,12 @@ REST_FRAMEWORK = {
 # 关联 JWTAuthentication
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30), # 访问令牌有效期为15分钟
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7), # 刷新令牌有效期为1天
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7), # 刷新令牌有效期为7天
     'ROTATE_REFRESH_TOKENS': False, # 由 Authing身份云 处理
     'BLACKLIST_AFTER_ROTATION': False, # 刷新令牌后将旧的令牌列入黑名单(这里由Authing服务处理)
     'ALGORITHM': 'RS256', # 使用的加密算法
     'VERIFYING_KEY': get_cached_authing_public_key(),  # 调用工具函数获取 PEM 公钥
     'AUTH_HEADER_TYPES': ('Bearer',),  # 认证头类型为 Bearer
-    'TOKEN_BACKEND_CLASS': CustomTokenBackend, # 自定义TokenBackend
 }
 
 ROOT_URLCONF = 'auth_test_django.urls'
